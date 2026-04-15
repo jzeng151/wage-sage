@@ -100,7 +100,8 @@ const LOCATION_SELECTORS = [
 /**
  * Try each selector in order, return the first matching element's trimmed text.
  * First attempts to find the element inside a known detail container (to avoid
- * matching sidebar recommendations), then falls back to the full document.
+ * matching sidebar recommendations), then falls back to the full document using
+ * the LAST match (detail panel renders after the sidebar).
  * Collapses internal whitespace so multi-line text nodes become single-line.
  */
 function queryTextContent(doc: Document, selectors: string[]): string | null {
@@ -116,11 +117,150 @@ function queryTextContent(doc: Document, selectors: string[]): string | null {
     }
   }
 
-  // Fallback: search full document
+  // Fallback: search full document, take the LAST match.
+  // The logged-in detail panel renders after the sidebar, so the last
+  // matching element is more likely to be the main job detail.
   for (const selector of selectors) {
-    const matchedElement = doc.querySelector(selector);
-    if (matchedElement && matchedElement.textContent?.trim()) {
-      return matchedElement.textContent.trim().replace(/\s+/g, " ");
+    const allMatches = doc.querySelectorAll(selector);
+    if (allMatches.length === 0) continue;
+    // Check from the last element backwards
+    for (let i = allMatches.length - 1; i >= 0; i--) {
+      const text = allMatches[i].textContent?.trim();
+      if (text) {
+        return text.replace(/\s+/g, " ");
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the first matching DOM element for a set of selectors.
+ * Searches detail containers first, then full document (last match).
+ * Returns the element itself, not its text content.
+ */
+function queryElement(doc: Document, selectors: string[]): Element | null {
+  for (const containerSelector of DETAIL_CONTAINERS) {
+    const container = doc.querySelector(containerSelector);
+    if (!container) continue;
+    for (const selector of selectors) {
+      const el = container.querySelector(selector);
+      if (el && el.textContent?.trim()) return el;
+    }
+  }
+  for (const selector of selectors) {
+    const allMatches = doc.querySelectorAll(selector);
+    if (allMatches.length === 0) continue;
+    for (let i = allMatches.length - 1; i >= 0; i--) {
+      if (allMatches[i].textContent?.trim()) return allMatches[i];
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the lowest (closest) common ancestor of two DOM elements.
+ * Used to determine the detail panel container that holds both title and company.
+ */
+function findLowestCommonAncestor(el1: Element, el2: Element): Element {
+  const ancestors1 = new Set<Element>();
+  let cur: Element | null = el1;
+  while (cur) {
+    ancestors1.add(cur);
+    cur = cur.parentElement;
+  }
+  cur = el2;
+  while (cur) {
+    if (ancestors1.has(cur)) return cur;
+    cur = cur.parentElement;
+  }
+  return document.body;
+}
+
+/**
+ * Find the location element nearest to a reference element in the DOM tree.
+ * Distance is measured as the total number of ancestor hops to reach the closest
+ * shared ancestor. Detail panel locations will be 1-4 hops away; sidebar
+ * recommendations will be 8+ hops away (through the layout root).
+ */
+function findNearestLocation(refElement: Element): string | null {
+  const refAncestors = new Map<Element, number>();
+  let cur: Element | null = refElement;
+  let depth = 0;
+  while (cur) {
+    refAncestors.set(cur, depth);
+    cur = cur.parentElement;
+    depth++;
+  }
+
+  let bestText: string | null = null;
+  let bestDistance = Infinity;
+
+  for (const selector of LOCATION_SELECTORS) {
+    const matches = document.querySelectorAll(selector);
+    for (const match of matches) {
+      const text = match.textContent?.trim().replace(/\s+/g, " ");
+      if (!text) continue;
+
+      let locCur: Element | null = match;
+      let locDepth = 0;
+      while (locCur) {
+        const refDepth = refAncestors.get(locCur);
+        if (refDepth !== undefined) {
+          const distance = refDepth + locDepth;
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestText = text;
+          }
+          break;
+        }
+        locCur = locCur.parentElement;
+        locDepth++;
+      }
+    }
+  }
+
+  return bestText;
+}
+
+/**
+ * Search for location-like text within a container, falling back to
+ * pattern matching when no CSS selector matches. Handles LinkedIn's
+ * frequent class name changes by looking for "City, ST" text patterns
+ * in leaf elements.
+ */
+function findLocationTextInContainer(container: Element): string | null {
+  const elements = container.querySelectorAll("*");
+  // Iterate from leaves upward to find the most specific match first
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    const text = el.textContent?.trim().replace(/\s+/g, " ");
+    if (!text || text.length > 150) continue;
+
+    // Skip elements whose children contain most of the text (non-leaf)
+    if (el.children.length > 0) {
+      const childTotal = Array.from(el.children)
+        .reduce((sum, child) => sum + (child.textContent?.trim().length || 0), 0);
+      if (childTotal > text.length * 0.5) continue;
+    }
+
+    // "City, ST" format
+    if (/^[A-Z][a-zA-Z\s\-·]+,\s*[A-Z]{2}/.test(text)) return text;
+    // "City ST" without comma (e.g. "Washington DC")
+    if (/^[A-Z][a-zA-Z\s\-]+\s+[A-Z]{2}\s*$/.test(text)) return text;
+  }
+  return null;
+}
+
+/**
+ * Search for the first matching element within a container, using a list of
+ * selectors. Returns trimmed, single-line text or null.
+ */
+function queryTextInContainer(container: Element, selectors: string[]): string | null {
+  for (const selector of selectors) {
+    const el = container.querySelector(selector);
+    if (el && el.textContent?.trim()) {
+      return el.textContent.trim().replace(/\s+/g, " ");
     }
   }
   return null;
@@ -156,13 +296,51 @@ export function validateJobData(data: JobData): boolean {
 
 /**
  * Extract job data from a LinkedIn job listing page.
+ *
+ * Location extraction uses three strategies in order:
+ * 1. Search within the LCA container of title + company (standard selectors)
+ * 2. Text-based search within the container (handles LinkedIn class name changes)
+ * 3. DOM proximity search: find the location element physically closest to the
+ *    title element. Detail panel locations are 1-4 hops away; sidebar
+ *    recommendations are 8+ hops away through the layout root.
  */
 export function extractJobData(): JobData | null {
-  const title = extractTitle(document);
-  const company = extractCompany(document);
-  const location = extractLocation(document);
+  const titleElement = queryElement(document, TITLE_SELECTORS);
+  if (!titleElement) return null;
 
-  if (!title) return null;
+  const title = titleElement.textContent!.trim().replace(/\s+/g, " ");
+  const companyElement = queryElement(document, COMPANY_SELECTORS);
+
+  // Use LCA of title and company as the detail panel container
+  const container = companyElement
+    ? findLowestCommonAncestor(titleElement, companyElement)
+    : (titleElement.parentElement || document.body);
+
+  // Get company text
+  let company: string | null = null;
+  if (companyElement?.textContent?.trim()) {
+    company = companyElement.textContent.trim().replace(/\s+/g, " ");
+  }
+  if (!company) {
+    company = queryTextInContainer(container, COMPANY_SELECTORS);
+  }
+
+  // Strategy 1: standard selectors within the LCA container
+  let location = queryTextInContainer(container, LOCATION_SELECTORS);
+
+  // Strategy 2: text-based search within the container
+  if (!location) {
+    location = findLocationTextInContainer(container);
+  }
+
+  // Strategy 3: DOM proximity search - nearest location element to the title
+  if (!location) {
+    location = findNearestLocation(titleElement);
+  }
+
+  // Last resort: independent full-page extraction
+  if (!company) company = extractCompany(document);
+  if (!location) location = extractLocation(document);
 
   const data: JobData = {
     title,

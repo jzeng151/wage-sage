@@ -52,6 +52,7 @@ describe("col-service", () => {
     if (result.success) {
       expect(result.data.rpp).toBe(118.3);
       expect(result.data.msaCode).toBe("41860");
+      expect(result.data.monthlyRent).toBe(2385);
     }
   });
 
@@ -70,7 +71,7 @@ describe("col-service", () => {
 
   it("reads from cache when available", async () => {
     const cachedData = {
-      data: { msaCode: "41860", beaAreaCode: "XX200", rpp: 118.3, fetchedAt: Date.now() },
+      data: { msaCode: "41860", beaAreaCode: "XX200", rpp: 118.3, monthlyRent: 2385, fetchedAt: Date.now() },
       cachedAt: Date.now(),
       ttlMs: 30 * 24 * 60 * 60 * 1000,
     };
@@ -79,5 +80,6 @@ describe("col-service", () => {
     const result = await getCachedCOLData("41860");
     expect(result).toBeDefined();
     expect(result!.rpp).toBe(118.3);
+    expect(result!.monthlyRent).toBe(2385);
   });
 });

@@ -35,6 +35,7 @@ export interface COLData {
   msaCode: string;
   beaAreaCode: string;
   rpp: number;
+  monthlyRent: number;
   fetchedAt: number;
 }
 
@@ -42,6 +43,8 @@ export interface COLData {
 export interface WalkAwayResult {
   walkAway: number;
   target: number;
+  costOfLiving: number;
+  marketSalary: number;
   median: number;
   p25: number;
   p75: number;

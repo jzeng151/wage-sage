@@ -315,8 +315,9 @@ export default function Popup() {
               {walkAwayResult && (
                 <>
                   <WalkAwayNumber
-                    amount={walkAwayResult.walkAway}
-                    formatted={formatSalary(walkAwayResult.walkAway)}
+                    costOfLivingFormatted={formatSalary(walkAwayResult.costOfLiving)}
+                    marketSalaryFormatted={formatSalary(walkAwayResult.marketSalary)}
+                    walkAwayFormatted={formatSalary(walkAwayResult.walkAway)}
                     source={`BLS OEWS · ${blsData?.msaName || "this MSA"}`}
                   />
 
@@ -325,6 +326,7 @@ export default function Popup() {
                     p25={walkAwayResult.p25}
                     p75={walkAwayResult.p75}
                     colIndex={walkAwayResult.colIndex}
+                    monthlyRent={colData?.monthlyRent || 0}
                     formatSalary={formatSalary}
                   />
 

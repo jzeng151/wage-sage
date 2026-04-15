@@ -48,6 +48,7 @@ export async function fetchCOLData(
     msaCode,
     beaAreaCode: entry.beaAreaCode,
     rpp: entry.rpp,
+    monthlyRent: entry.monthlyRent1BR,
     fetchedAt: Date.now(),
   };
 

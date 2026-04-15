@@ -133,6 +133,15 @@ export function parseLocationParts(
           return { city: firstCityMatch.city, state: firstCityMatch.state };
         }
       }
+
+      // Substring match: table city is contained in cityPart.
+      // Handles "Greater Phoenix" -> "Phoenix", "Dallas-Fort Worth" -> "Dallas", etc.
+      const substringMatch = CITY_TO_MSA.find(
+        (entry) => cityPart.toLowerCase().includes(entry.city.toLowerCase())
+      );
+      if (substringMatch) {
+        return { city: substringMatch.city, state: substringMatch.state };
+      }
     }
   }
 

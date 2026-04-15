@@ -267,6 +267,92 @@ describe("extractJobData", () => {
     expect(data!.company).toBe("Stripe");
     expect(data!.location).toBe("South San Francisco, CA");
   });
+
+  it("extracts from detail panel, not sidebar recommendations", () => {
+    // Simulates the logged-in LinkedIn layout with a sidebar recommendation
+    // followed by the main job detail panel.
+    document.body.innerHTML = `
+      <div class="job-card-square">
+        <div class="artdeco-entity-lockup__title">Junior Developer</div>
+        <div class="artdeco-entity-lockup__subtitle">SideCorp</div>
+        <div class="artdeco-entity-lockup__caption">Austin, TX</div>
+      </div>
+      <div class="jobs-unified-top-card">
+        <div class="jobs-unified-top-card__job-title"><h1>Staff Engineer</h1></div>
+        <div class="jobs-unified-top-card__company-name"><a>Meta</a></div>
+        <div class="jobs-unified-top-card__bullet">Menlo Park, CA</div>
+      </div>
+    `;
+    const data = extractJobData();
+    expect(data).toBeDefined();
+    expect(data!.title).toBe("Staff Engineer");
+    expect(data!.company).toBe("Meta");
+    expect(data!.location).toBe("Menlo Park, CA");
+  });
+
+  it("extracts from guest layout detail, not sidebar", () => {
+    // Guest page layout with sidebar recommendation before the detail card
+    document.body.innerHTML = `
+      <div class="base-search-card">
+        <h3 class="base-search-card__title">Wrong Title</h3>
+        <div class="base-search-card__subtitle"><a class="hidden-nested-link">WrongCo</a></div>
+        <div class="base-search-card__metadata"><span class="job-search-card__location">Wrong City, XX</span></div>
+      </div>
+      <section class="top-card-layout">
+        <div class="top-card-layout__card">
+          <div class="top-card-layout__entity-info-container">
+            <div class="top-card-layout__entity-info">
+              <h1 class="top-card-layout__title topcard__title">Senior Engineer</h1>
+              <h4 class="top-card-layout__second-subline">
+                <div class="topcard__flavor-row">
+                  <span class="topcard__flavor"><a class="topcard__org-name-link">RealCorp</a></span>
+                  <span class="topcard__flavor topcard__flavor--bullet">San Francisco, CA</span>
+                </div>
+              </h4>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+    const data = extractJobData();
+    expect(data).toBeDefined();
+    expect(data!.title).toBe("Senior Engineer");
+    expect(data!.company).toBe("RealCorp");
+    expect(data!.location).toBe("San Francisco, CA");
+  });
+
+  it("uses proximity to pick detail location over multiple sidebar items", () => {
+    // Multiple sidebar recommendations, detail panel with unknown location class
+    document.body.innerHTML = `
+      <div class="sidebar">
+        <div class="job-card">
+          <div class="artdeco-entity-lockup__title">Intern</div>
+          <div class="artdeco-entity-lockup__subtitle">SideCorp1</div>
+          <span class="job-search-card__location">Portland, OR</span>
+        </div>
+        <div class="job-card">
+          <div class="artdeco-entity-lockup__title">Junior</div>
+          <div class="artdeco-entity-lockup__subtitle">SideCorp2</div>
+          <span class="job-search-card__location">Denver, CO</span>
+        </div>
+        <div class="job-card">
+          <div class="artdeco-entity-lockup__title">Mid</div>
+          <div class="artdeco-entity-lockup__subtitle">SideCorp3</div>
+          <span class="job-search-card__location">Austin, TX</span>
+        </div>
+      </div>
+      <div class="detail">
+        <div class="jobs-unified-top-card__job-title"><h1>Staff Engineer</h1></div>
+        <div class="jobs-unified-top-card__company-name"><a>Meta</a></div>
+        <span class="unknown-loc-class">Menlo Park, CA</span>
+      </div>
+    `;
+    const data = extractJobData();
+    expect(data).toBeDefined();
+    expect(data!.title).toBe("Staff Engineer");
+    expect(data!.company).toBe("Meta");
+    expect(data!.location).toBe("Menlo Park, CA");
+  });
 });
 
 describe("validateJobData", () => {

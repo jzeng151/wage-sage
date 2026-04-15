@@ -74,6 +74,21 @@ describe("parseLocationParts", () => {
   it("returns null for pure 'Remote' after stripping parens", () => {
     expect(parseLocationParts("Remote")).toBeNull();
   });
+
+  it("handles 'Greater Phoenix Area (Hybrid)' via substring match", () => {
+    const result = parseLocationParts("Greater Phoenix Area (Hybrid)");
+    expect(result).toEqual({ city: "Phoenix", state: "AZ" });
+  });
+
+  it("handles 'Greater Seattle Area'", () => {
+    const result = parseLocationParts("Greater Seattle Area");
+    expect(result).toEqual({ city: "Seattle", state: "WA" });
+  });
+
+  it("handles 'Greater New York City Area'", () => {
+    const result = parseLocationParts("Greater New York City Area");
+    expect(result).toEqual({ city: "New York", state: "NY" });
+  });
 });
 
 describe("normalizeLocation", () => {

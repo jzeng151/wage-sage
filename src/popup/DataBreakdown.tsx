@@ -1,13 +1,14 @@
 /**
- * Salary data breakdown showing BLS median, P25, P75, and cost-of-living index.
+ * Salary data breakdown showing BLS median, P25, P75, monthly rent, and COL index.
  * The 75th percentile row is highlighted in green as the aspirational target.
- * COL index shows how much above/below the national average this area costs.
+ * Monthly rent shows the actual HUD Fair Market Rent for a 1BR in this area.
  */
 interface DataBreakdownProps {
   median: number;
   p25: number;
   p75: number;
   colIndex: number;
+  monthlyRent: number;
   formatSalary: (n: number) => string;
 }
 
@@ -16,6 +17,7 @@ export function DataBreakdown({
   p25,
   p75,
   colIndex,
+  monthlyRent,
   formatSalary,
 }: DataBreakdownProps) {
   return (
@@ -33,6 +35,10 @@ export function DataBreakdown({
         <span className="font-semibold text-sage-green-dark">
           {formatSalary(p75)}
         </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-secondary">1BR rent:</span>
+        <span className="font-semibold text-navy">${monthlyRent.toLocaleString("en-US")}/mo</span>
       </div>
       <div className="flex justify-between">
         <span className="text-slate-secondary">COL index:</span>
