@@ -261,6 +261,11 @@ export default function Popup() {
               LinkedIn detected
             </span>
           )}
+          {jobData?.source === "indeed" && (
+            <span className="text-[10px] bg-sage-green text-navy px-2 py-0.5 rounded-full font-semibold">
+              Indeed detected
+            </span>
+          )}
         </div>
       </div>
 

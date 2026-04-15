@@ -1,13 +1,12 @@
 /**
- * LinkedIn content script.
+ * Indeed content script.
  *
- * Injected on LinkedIn job listing pages (jobs/view/* and jobs/search*).
- * Extracts job title, company, and location from the page DOM using multiple
- * CSS selector fallbacks to handle LinkedIn's frequent DOM changes.
+ * Injected on Indeed job listing pages (viewjob, jobs, and international domains).
+ * Extracts job title, company, and location using multiple CSS selector fallbacks
+ * to handle Indeed's DOM structure and periodic class name changes.
  *
  * The extracted data is sent to the background service worker via CACHE_JOB_DATA
  * message, which caches it under the sender's tab ID. The popup reads it by tab ID.
- * Content scripts cannot access their own tab ID in MV3, so this relay is necessary.
  *
  * A MutationObserver with 500ms debounce re-extracts on SPA navigation.
  *
@@ -27,96 +26,117 @@ import {
 
 export const config: PlasmoCSConfig = {
   matches: [
-    "https://www.linkedin.com/jobs/view/*",
-    "https://www.linkedin.com/jobs/search*",
+    "https://*.indeed.com/viewjob*",
+    "https://*.indeed.com/jobs*",
+    "https://*.indeed.com/rc/clk*",
+    "https://*.indeed.ca/viewjob*",
+    "https://*.indeed.ca/jobs*",
+    "https://*.indeed.co.uk/viewjob*",
+    "https://*.indeed.co.uk/jobs*",
+    "https://*.indeed.de/viewjob*",
+    "https://*.indeed.de/jobs*",
+    "https://*.indeed.fr/viewjob*",
+    "https://*.indeed.fr/jobs*",
+    "https://*.indeed.in/viewjob*",
+    "https://*.indeed.in/jobs*",
+    "https://*.indeed.jp/viewjob*",
+    "https://*.indeed.jp/jobs*",
+    "https://*.indeed.com.au/viewjob*",
+    "https://*.indeed.com.au/jobs*",
   ],
   run_at: "document_idle",
 };
 
 /**
- * Containers that isolate the main job detail from the sidebar recommendations.
- * On the logged-in SPA, recommended jobs appear in a left panel. The detail
- * panel uses these container classes. We scope selectors to these first.
+ * Containers that hold the main job detail content on Indeed job detail pages.
+ * These isolate the real listing from sidebar recommendations or search results.
  */
 const DETAIL_CONTAINERS = [
-  ".job-details",
-  ".core-rail",
-  ".details",
+  ".jobsearch-InfoHeaderContainer",
+  ".jobsearch-DesktopStickyContainer",
+  "[data-testid='jobsearch-CompanyInfoContainer']",
+  "#viewJobSSRRoot",
+  ".jobsearch-ViewJobLayout",
+  ".jobsearch-ViewLayout",
+  "#jobview-container",
 ];
 
 /**
- * Job title selectors, scoped to detail containers first to avoid
- * matching sidebar recommendations.
+ * Job title selectors for Indeed job detail and search results pages.
+ * Uses data-testid attributes first (most stable), then stable classes.
  */
 const TITLE_SELECTORS = [
-  // Logged-in job detail panel
-  ".jobs-unified-top-card__job-title h1",
-  ".jobs-unified-top-card__job-title",
-  ".job-details-jobs-unified-top-card__job-title h1",
-  ".job-details-jobs-unified-top-card__job-title",
-  // Guest job detail page
-  "h1.topcard__title",
-  "h1.top-card-layout__title",
+  // Job detail page
+  "h1.jobsearch-JobInfoHeader-title",
+  ".jobsearch-JobInfoHeader-title-container h1",
+  "[data-testid='jobsearch-JobInfoHeader-title']",
   // Search results page
-  "h3.base-search-card__title",
+  "h2.jobTitle a",
+  "a.jcs-JobTitle",
   // Generic fallbacks
-  ".artdeco-entity-lockup__title",
-  "h1[class*='job-title']",
-  "h1.t-24",
+  "h1[class*='JobInfoHeader']",
+  "h2[class*='jobTitle']",
 ];
 
 /**
  * Company name selectors.
  */
 const COMPANY_SELECTORS = [
-  // Logged-in job detail panel
-  ".jobs-unified-top-card__company-name a",
-  ".jobs-unified-top-card__company-name",
-  ".job-details-jobs-unified-top-card__company-name a",
-  ".job-details-jobs-unified-top-card__company-name",
-  // Guest job detail page
-  "a.topcard__org-name-link",
+  // Job detail page - data-testid is most stable
+  "[data-testid='inlineHeader-companyName']",
+  ".jobsearch-CompanyInfoContainer a",
+  "[data-company-name='true']",
+  ".icl-u-lg-mr--sm",
   // Search results page
-  "h4.base-search-card__subtitle a.hidden-nested-link",
+  "span.companyName",
+  "[data-testid='company-name']",
   // Generic fallbacks
-  ".artdeco-entity-lockup__subtitle",
-  "a.top-card-layout__second-link span",
-  "a[class*='company'] span",
-  ".top-card-layout__card span[class*='company']",
-  ".base-search-card__subtitle",
+  "a[class*='companyName']",
+  "[class*='companyName']",
 ];
 
 /**
  * Location selectors.
  */
 const LOCATION_SELECTORS = [
-  // Logged-in job detail panel
-  ".jobs-unified-top-card__bullet",
-  ".job-details-jobs-unified-top-card__bullet",
-  // Guest job detail page
-  "span.topcard__flavor--bullet",
+  // Job detail page
+  "[data-testid='inlineHeader-companyLocation']",
+  ".jobsearch-JobInfoHeader-subtitle",
+  ".jobsearch-JobInfoHeader-subtitleLocation",
   // Search results page
-  "span.job-search-card__location",
+  "div.companyLocation",
+  "[data-testid='text-location']",
   // Generic fallbacks
-  ".artdeco-entity-lockup__caption",
-  "span.top-card-layout__bullet",
-  ".top-card-layout__card span[class*='location']",
+  "[class*='companyLocation']",
+  "div[class*='location']",
   "span[class*='location']",
-  ".base-search-card__metadata",
 ];
 
-
-/** Extract job title from LinkedIn job page DOM. */
-export function extractTitle(doc: Document): string | null {
-  return queryTextContent(doc, TITLE_SELECTORS, DETAIL_CONTAINERS);
+/**
+ * Clean Indeed job title by stripping common suffixes.
+ * Indeed titles often include " - job post" or " | Indeed.com" appended.
+ */
+function cleanIndeedTitle(raw: string): string {
+  return raw
+    .replace(/\s*[-–—]\s*job\s*post\s*$/i, "")
+    .replace(/\s*\|\s*Indeed(\.com?)?\s*$/i, "")
+    .replace(/\s*[-–—]\s*$/,"")
+    .trim();
 }
 
-/** Extract company name from LinkedIn job page DOM. */
+/** Extract job title from Indeed job page DOM. */
+export function extractTitle(doc: Document): string | null {
+  const raw = queryTextContent(doc, TITLE_SELECTORS, DETAIL_CONTAINERS);
+  if (!raw) return null;
+  return cleanIndeedTitle(raw);
+}
+
+/** Extract company name from Indeed job page DOM. */
 export function extractCompany(doc: Document): string | null {
   return queryTextContent(doc, COMPANY_SELECTORS, DETAIL_CONTAINERS);
 }
 
-/** Extract location from LinkedIn job page DOM. */
+/** Extract location from Indeed job page DOM. */
 export function extractLocation(doc: Document): string | null {
   return queryTextContent(doc, LOCATION_SELECTORS, DETAIL_CONTAINERS);
 }
@@ -135,20 +155,22 @@ export function validateJobData(data: JobData): boolean {
 }
 
 /**
- * Extract job data from a LinkedIn job listing page.
+ * Extract job data from an Indeed job listing page.
  *
  * Location extraction uses three strategies in order:
  * 1. Search within the LCA container of title + company (standard selectors)
- * 2. Text-based search within the container (handles LinkedIn class name changes)
+ * 2. Text-based search within the container (pattern matching for "City, ST")
  * 3. DOM proximity search: find the location element physically closest to the
- *    title element. Detail panel locations are 1-4 hops away; sidebar
- *    recommendations are 8+ hops away through the layout root.
+ *    title element.
  */
 export function extractJobData(): JobData | null {
   const titleElement = queryElement(document, TITLE_SELECTORS, DETAIL_CONTAINERS);
   if (!titleElement) return null;
 
-  const title = titleElement.textContent!.trim().replace(/\s+/g, " ");
+  const rawTitle = titleElement.textContent!.trim().replace(/\s+/g, " ");
+  const title = cleanIndeedTitle(rawTitle);
+  if (!title) return null;
+
   const companyElement = queryElement(document, COMPANY_SELECTORS, DETAIL_CONTAINERS);
 
   // Use LCA of title and company as the detail panel container
@@ -186,7 +208,7 @@ export function extractJobData(): JobData | null {
     title,
     company: company || "",
     location: location || "",
-    source: "linkedin",
+    source: "indeed",
     extractedAt: Date.now(),
   };
 
@@ -210,7 +232,7 @@ export function sendJobDataToBackground(data: JobData): void {
 // Auto-extract and cache when content script loads (browser only)
 if (typeof document !== "undefined" && typeof chrome !== "undefined") {
   /**
-   * Attempt extraction with retries. LinkedIn loads job content asynchronously,
+   * Attempt extraction with retries. Indeed loads job content asynchronously,
    * so the DOM may not have job data at script injection time even with document_idle.
    */
   function attemptExtraction(remainingAttempts: number): void {
@@ -245,7 +267,6 @@ if (typeof document !== "undefined" && typeof chrome !== "undefined") {
   });
 
   // Listen for on-demand extraction requests from the popup.
-  // This is more reliable than depending on auto-extraction timing.
   chrome.runtime.onMessage.addListener(
     (message: { type: string }, _sender, sendResponse) => {
       if (message.type === "EXTRACT_JOB_DATA") {

@@ -42,7 +42,7 @@ export function validateJobDataFromStorage(raw: unknown): {
   title: string;
   company: string;
   location: string;
-  source: "linkedin" | "manual";
+  source: "linkedin" | "indeed" | "manual";
   extractedAt: number;
   tabId?: number;
 } | null {
@@ -52,7 +52,7 @@ export function validateJobDataFromStorage(raw: unknown): {
   if (typeof data.title !== "string" || data.title.trim().length === 0) return null;
   if (typeof data.company !== "string" || data.company.trim().length === 0) return null;
   if (typeof data.location !== "string" || data.location.trim().length === 0) return null;
-  if (data.source !== "linkedin" && data.source !== "manual") return null;
+  if (data.source !== "linkedin" && data.source !== "indeed" && data.source !== "manual") return null;
   if (typeof data.extractedAt !== "number") return null;
 
   // Enforce length limits

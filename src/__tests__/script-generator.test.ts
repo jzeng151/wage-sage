@@ -31,11 +31,14 @@ function makeScriptRequest(overrides: Partial<ScriptRequest> = {}): ScriptReques
       msaCode: "41860",
       beaAreaCode: "XX200",
       rpp: 118.3,
+      monthlyRent: 2385,
       fetchedAt: Date.now(),
     },
     walkAwayResult: {
-      walkAway: 147116,
-      target: 163517,
+      walkAway: 174087,
+      target: 193430,
+      costOfLiving: 95400,
+      marketSalary: 193430,
       median: 168200,
       p25: 142500,
       p75: 198600,
@@ -99,8 +102,10 @@ describe("buildPrompt", () => {
 
   it("includes walk-away number and target salary in prompt", () => {
     const prompt = buildPrompt(request);
-    expect(prompt).toContain("147,116");
+    expect(prompt).toContain("174,087");
     expect(prompt).toContain("195,000");
+    expect(prompt).toContain("95,400");
+    expect(prompt).toContain("193,430");
   });
 
   it("includes output format instructions", () => {

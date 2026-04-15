@@ -49,25 +49,39 @@ export function parseLocationParts(
   const trimmed = cleanLocation(raw);
   if (!trimmed) return null;
 
+  // Strip trailing ZIP code (e.g., " 10606" or " 10606-1234")
+  // Indeed often includes full addresses like "10 Bank St, White Plains, NY 10606"
+  const noZip = trimmed.replace(/\s+\d{5}(?:-\d{4})?\s*$/, "");
+
+  // Handle full addresses with street (multiple commas).
+  // Extract "City, ST" from the last segment: "10 Bank St, White Plains, NY" → "White Plains, NY"
+  const commaCount = (noZip.match(/,/g) || []).length;
+  if (commaCount > 1) {
+    const lastCityState = noZip.match(/([^,]+),\s*([A-Z]{2})\s*$/);
+    if (lastCityState) {
+      return { city: lastCityState[1].trim(), state: lastCityState[2] };
+    }
+  }
+
   // Pure "Remote" with nothing else
-  if (/^Remote$/i.test(trimmed)) return null;
+  if (/^Remote$/i.test(noZip)) return null;
 
   // Known non-US patterns
   const nonUSPatterns = [
     /,\s*(UK|England|Scotland|Wales|Ireland|Germany|France|India|China|Japan|Canada|Australia|Brazil|Mexico|Netherlands|Singapore|South Korea|Israel|Sweden|Switzerland)\s*$/i,
   ];
   for (const pattern of nonUSPatterns) {
-    if (pattern.test(trimmed)) return null;
+    if (pattern.test(noZip)) return null;
   }
 
   // Pattern: "City, ST" (two-letter state abbreviation, includes DC)
-  const cityStateMatch = trimmed.match(/^(.+?),\s*([A-Z]{2})\s*$/);
+  const cityStateMatch = noZip.match(/^(.+?),\s*([A-Z]{2})\s*$/);
   if (cityStateMatch) {
     return { city: cityStateMatch[1].trim(), state: cityStateMatch[2] };
   }
 
   // Pattern: "City ST" without comma (e.g. "New York NY", "Washington DC")
-  const cityStateNoComma = trimmed.match(/^(.+?)\s+([A-Z]{2})\s*$/);
+  const cityStateNoComma = noZip.match(/^(.+?)\s+([A-Z]{2})\s*$/);
   if (cityStateNoComma) {
     const cityName = cityStateNoComma[1].trim();
     // Make sure the city part doesn't end with a state abbreviation (avoid double-match)
@@ -83,7 +97,7 @@ export function parseLocationParts(
   }
 
   // Pattern: "City, State" (full state name)
-  const cityFullStateMatch = trimmed.match(/^(.+?),\s*([A-Za-z\s]+?)\s*$/);
+  const cityFullStateMatch = noZip.match(/^(.+?),\s*([A-Za-z\s]+?)\s*$/);
   if (cityFullStateMatch) {
     const stateName = cityFullStateMatch[2].trim();
     const stateEntry = CITY_TO_MSA.find(
@@ -105,9 +119,9 @@ export function parseLocationParts(
     "Region",
   ];
   for (const suffix of areaSuffixes) {
-    const suffixIndex = trimmed.toLowerCase().indexOf(suffix.toLowerCase());
+    const suffixIndex = noZip.toLowerCase().indexOf(suffix.toLowerCase());
     if (suffixIndex > 0) {
-      const cityPart = trimmed.substring(0, suffixIndex).trim();
+      const cityPart = noZip.substring(0, suffixIndex).trim();
 
       // Try the full city part first (e.g. "Washington DC-Baltimore")
       const fullMatch = CITY_TO_MSA.find(
@@ -146,7 +160,7 @@ export function parseLocationParts(
   }
 
   // Pattern: "United States" or similar
-  if (/united states/i.test(trimmed)) return null;
+  if (/united states/i.test(noZip)) return null;
 
   return null;
 }

@@ -52,7 +52,9 @@ export function buildPrompt(request: ScriptRequest): string {
 - 25th percentile: $${blsData.p25.toLocaleString()}
 - 75th percentile: $${blsData.p75.toLocaleString()}
 - Cost of living index: ${colData.rpp} (${colPctAbove}% ${colDirection} national average)
-- Walk-away number: $${walkAwayResult.walkAway.toLocaleString()}
+- Estimated annual cost of living: $${walkAwayResult.costOfLiving.toLocaleString()} (based on 1BR rent of $${colData.monthlyRent.toLocaleString()}/mo)
+- Market salary for this role: $${walkAwayResult.marketSalary.toLocaleString()}
+- Minimum acceptable salary: $${walkAwayResult.walkAway.toLocaleString()}
 - User's target salary: $${targetSalary.toLocaleString()}
 
 Generate a salary negotiation script the user can read word-for-word. Reference the specific MSA name and specific BLS dollar figures. Use collaborative language ("I'd like to propose...", "Based on the data...", "Would it be possible to explore..."). Do NOT use adversarial language ("I deserve", "I refuse", "That's not acceptable").

@@ -10,7 +10,7 @@ export interface JobData {
   title: string;
   company: string;
   location: string;
-  source: "linkedin" | "manual";
+  source: "linkedin" | "indeed" | "manual";
   extractedAt: number;
   tabId?: number;
 }

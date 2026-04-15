@@ -89,6 +89,26 @@ describe("parseLocationParts", () => {
     const result = parseLocationParts("Greater New York City Area");
     expect(result).toEqual({ city: "New York", state: "NY" });
   });
+
+  it("strips ZIP code from 'White Plains, NY 10606'", () => {
+    const result = parseLocationParts("White Plains, NY 10606");
+    expect(result).toEqual({ city: "White Plains", state: "NY" });
+  });
+
+  it("extracts city from full address '10 Bank Street, White Plains, NY 10606'", () => {
+    const result = parseLocationParts("10 Bank Street, White Plains, NY 10606");
+    expect(result).toEqual({ city: "White Plains", state: "NY" });
+  });
+
+  it("extracts city from address with suite '123 Main St, Suite 100, San Francisco, CA 94105'", () => {
+    const result = parseLocationParts("123 Main St, Suite 100, San Francisco, CA 94105");
+    expect(result).toEqual({ city: "San Francisco", state: "CA" });
+  });
+
+  it("extracts city from address without ZIP '10 Bank St, White Plains, NY'", () => {
+    const result = parseLocationParts("10 Bank St, White Plains, NY");
+    expect(result).toEqual({ city: "White Plains", state: "NY" });
+  });
 });
 
 describe("normalizeLocation", () => {
@@ -144,5 +164,17 @@ describe("normalizeLocation", () => {
     const result = normalizeLocation("Chicago, IL");
     expect(result).toBeDefined();
     expect(result!.msaCode).toBe("16980");
+  });
+
+  it("handles full Indeed address '10 Bank Street, White Plains, NY 10606'", () => {
+    const result = normalizeLocation("10 Bank Street, White Plains, NY 10606");
+    expect(result).toBeDefined();
+    expect(result!.msaCode).toBe("35620"); // Falls back to NY state → New York MSA
+  });
+
+  it("handles full Indeed address with known city '123 Main St, San Francisco, CA 94105'", () => {
+    const result = normalizeLocation("123 Main St, San Francisco, CA 94105");
+    expect(result).toBeDefined();
+    expect(result!.msaCode).toBe("41860");
   });
 });

@@ -39,6 +39,14 @@
     ],
     "host_permissions": [
       "https://www.linkedin.com/*",
+      "https://*.indeed.com/*",
+      "https://*.indeed.ca/*",
+      "https://*.indeed.co.uk/*",
+      "https://*.indeed.de/*",
+      "https://*.indeed.fr/*",
+      "https://*.indeed.in/*",
+      "https://*.indeed.jp/*",
+      "https://*.indeed.com.au/*",
       "https://api.bls.gov/*"
     ]
   }
